@@ -1,14 +1,77 @@
 import streamlit as st
 import random
 from datetime import datetime
+import hashlib
+import json
+import pandas as pd
+import time
 
-# ===== MEDICAL SCHOOL OPHTHALMOLOGY CURRICULUM =====
+# ===== SECURE USER AUTHENTICATION SYSTEM =====
 st.set_page_config(
     page_title="MedSchool Ophtho - Interactive Curriculum",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ===== USER DATABASE (In production, use real database) =====
+def initialize_user_database():
+    if "users" not in st.session_state:
+        # Sample users - in production, use proper database
+        st.session_state.users = {
+            "admin": {
+                "password_hash": hash_password("admin123"),
+                "name": "Administrator",
+                "role": "admin",
+                "email": "admin@medschoolophtho.com"
+            },
+            "ms2024001": {
+                "password_hash": hash_password("password123"),
+                "name": "Medical Student 001",
+                "role": "student",
+                "email": "student001@medschool.edu",
+                "registration_date": "2024-01-15"
+            },
+            "ms2024002": {
+                "password_hash": hash_password("password123"), 
+                "name": "Medical Student 002",
+                "role": "student",
+                "email": "student002@medschool.edu",
+                "registration_date": "2024-01-15"
+            }
+        }
+    
+    if "student_progress" not in st.session_state:
+        st.session_state.student_progress = {}
+
+def hash_password(password):
+    """Hash a password for storing."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password, password_hash):
+    """Verify a stored password against one provided by user"""
+    return hash_password(password) == password_hash
+
+def authenticate_user(username, password):
+    """Authenticate user credentials"""
+    if username in st.session_state.users:
+        if verify_password(password, st.session_state.users[username]["password_hash"]):
+            return True, st.session_state.users[username]
+    return False, None
+
+def register_user(username, password, name, email, role="student"):
+    """Register a new user"""
+    if username in st.session_state.users:
+        return False, "Username already exists"
+    
+    st.session_state.users[username] = {
+        "password_hash": hash_password(password),
+        "name": name,
+        "email": email,
+        "role": role,
+        "registration_date": datetime.now().strftime("%Y-%m-%d")
+    }
+    return True, "User registered successfully"
 
 # ===== COMPREHENSIVE CURRICULUM STRUCTURE =====
 CURRICULUM_MODULES = {
@@ -225,6 +288,28 @@ MEDICAL_CASES = {
         "usmle_relevance": "High - Step 2 CK"
     },
 
+    "Diabetic Retinopathy Screening": {
+        "module": "ms2_pathologies",
+        "case_type": "preventive_care",
+        "question": "A 50-year-old with type 2 diabetes for 10 years presents for routine care. He has no visual symptoms. When should he have his first dilated eye examination?",
+        "options": [
+            "Immediately",
+            "In 5 years",
+            "Only when symptoms develop",
+            "At age 65"
+        ],
+        "correct_answer": "Immediately",
+        "explanation": "Type 2 diabetics should have initial dilated eye exam at diagnosis. Type 1 diabetics should have initial exam within 5 years of diagnosis.",
+        "learning_points": [
+            "Type 2 diabetes: dilated exam at diagnosis",
+            "Type 1 diabetes: exam within 5 years of diagnosis",
+            "Annual screening thereafter if no retinopathy",
+            "More frequent if retinopathy present"
+        ],
+        "difficulty": "basic",
+        "usmle_relevance": "High - Step 2 CK"
+    },
+
     # ===== MS3 CLERKSHIP =====
     "Retinal Detachment": {
         "module": "ms3_clerkship",
@@ -267,6 +352,50 @@ MEDICAL_CASES = {
             "CSME = clinically significant macular edema"
         ],
         "difficulty": "advanced",
+        "usmle_relevance": "High - Step 2 CK"
+    },
+
+    "Uveitis Workup": {
+        "module": "ms3_clerkship",
+        "case_type": "diagnostic_approach",
+        "question": "A 30-year-old patient presents with acute anterior uveitis. What systemic condition is most commonly associated with this presentation?",
+        "options": [
+            "HLA-B27 associated spondyloarthropathies",
+            "Sarcoidosis",
+            "Tuberculosis",
+            "Syphilis"
+        ],
+        "correct_answer": "HLA-B27 associated spondyloarthropathies",
+        "explanation": "HLA-B27 associated conditions (ankylosing spondylitis, reactive arthritis, IBD) are the most common systemic associations with acute anterior uveitis.",
+        "learning_points": [
+            "HLA-B27 most common systemic association",
+            "Anterior uveitis: pain, photophobia, redness",
+            "Posterior uveitis: more likely infectious/autoimmune",
+            "Always check for systemic symptoms"
+        ],
+        "difficulty": "intermediate",
+        "usmle_relevance": "High - Step 2 CK"
+    },
+
+    "Pediatric Vision Screening": {
+        "module": "ms3_clerkship",
+        "case_type": "preventive_pediatrics",
+        "question": "At what age should children have their first vision screening examination?",
+        "options": [
+            "Newborn period",
+            "6 months",
+            "3 years",
+            "5 years"
+        ],
+        "correct_answer": "Newborn period",
+        "explanation": "The AAP recommends vision screening in the newborn period and at all well-child visits. Formal vision assessment begins around 3-4 years.",
+        "learning_points": [
+            "Newborn: red reflex test",
+            "6-12 months: ocular alignment",
+            "3-5 years: formal vision screening",
+            "Amblyopia treatment most effective <7 years"
+        ],
+        "difficulty": "basic",
         "usmle_relevance": "High - Step 2 CK"
     },
 
@@ -315,6 +444,50 @@ MEDICAL_CASES = {
         "usmle_relevance": "High - Step 2 CK and Step 3"
     },
 
+    "Orbital Cellulitis": {
+        "module": "ms4_advanced",
+        "case_type": "surgical_decision",
+        "question": "A 10-year-old with sinusitis presents with fever, proptosis, limited eye movement, and decreased vision. CT shows orbital abscess. What is the most appropriate management?",
+        "options": [
+            "Oral antibiotics and close observation",
+            "IV antibiotics and ENT consultation",
+            "Immediate surgical drainage",
+            "Topical antibiotics only"
+        ],
+        "correct_answer": "Immediate surgical drainage",
+        "explanation": "Orbital abscess with vision loss constitutes an emergency requiring immediate surgical drainage to prevent permanent vision loss and CNS spread.",
+        "learning_points": [
+            "Orbital abscess + vision loss = surgical emergency",
+            "Preseptal vs orbital cellulitis distinction critical",
+            "IV antibiotics essential",
+            "Multidisciplinary approach with ENT"
+        ],
+        "difficulty": "expert",
+        "usmle_relevance": "High - Step 2 CK and Step 3"
+    },
+
+    "Chemical Eye Injury": {
+        "module": "ms4_advanced",
+        "case_type": "emergency_protocol",
+        "question": "A patient presents with alkaline chemical splash to the eye. What is the most appropriate immediate action?",
+        "options": [
+            "Irrigate with normal saline for 30 minutes",
+            "Apply antibiotic ointment",
+            "Patch the eye",
+            "Neutralize with weak acid"
+        ],
+        "correct_answer": "Irrigate with normal saline for 30 minutes",
+        "explanation": "Alkaline burns require immediate, prolonged irrigation (30+ minutes) until pH normalizes. Time is critical for preventing permanent damage.",
+        "learning_points": [
+            "Alkaline burns: more damaging than acidic",
+            "Irrigate until pH 7.0-7.4",
+            "Check pH with litmus paper",
+            "Alkali penetrates deeper than acid"
+        ],
+        "difficulty": "advanced",
+        "usmle_relevance": "High - Step 2 CK and Step 3"
+    },
+
     # ===== BOARDS PREP =====
     "Integrated Case - Elderly Female": {
         "module": "boards_prep",
@@ -336,168 +509,252 @@ MEDICAL_CASES = {
         ],
         "difficulty": "expert",
         "usmle_relevance": "High - Step 2 CK and Step 3"
+    },
+
+    "Integrated Case - Young Male": {
+        "module": "boards_prep",
+        "case_type": "integrated_clinical",
+        "question": "A 25-year-old male presents with acute vision loss in one eye, pain with eye movement, and color desaturation. Neurologic exam is otherwise normal. What is the most likely diagnosis?",
+        "options": [
+            "Optic neuritis",
+            "Retinal detachment",
+            "Central retinal artery occlusion",
+            "Functional vision loss"
+        ],
+        "correct_answer": "Optic neuritis",
+        "explanation": "Young patient + monocular vision loss + pain with eye movement + color desaturation = classic optic neuritis, often associated with MS.",
+        "learning_points": [
+            "Optic neuritis: pain with movement characteristic",
+            "Often first presentation of MS",
+            "IV steroids may speed recovery",
+            "MRI brain to evaluate for demyelination"
+        ],
+        "difficulty": "expert",
+        "usmle_relevance": "High - Step 2 CK and Step 3"
+    },
+
+    "Integrated Case - Step 2 Style": {
+        "module": "boards_prep",
+        "case_type": "usmle_style",
+        "question": "A 68-year-old man with type 2 diabetes presents with floaters in his right eye. Examination shows dot-blot hemorrhages, microaneurysms, and hard exudates. Visual acuity is 20/25. What is the most appropriate management?",
+        "options": [
+            "Pan-retinal photocoagulation",
+            "Anti-VEGF injections",
+            "Observation with follow-up in 4-6 months",
+            "Vitrectomy"
+        ],
+        "correct_answer": "Observation with follow-up in 4-6 months",
+        "explanation": "This describes non-proliferative diabetic retinopathy without macular edema. No treatment indicated currently, but requires regular monitoring.",
+        "learning_points": [
+            "NPDR without DME: observation only",
+            "PDR or DME requires treatment",
+            "Annual dilated exams for diabetics",
+            "Tight glycemic control slows progression"
+        ],
+        "difficulty": "expert",
+        "usmle_relevance": "High - Step 2 CK"
     }
 }
 
-# ===== INITIALIZE SESSION STATE =====
-if "student_progress" not in st.session_state:
-    st.session_state.student_progress = {}
-
-if "current_module" not in st.session_state:
-    st.session_state.current_module = "ms1_foundations"
-
-if "current_case" not in st.session_state:
-    st.session_state.current_case = None
-
-# ===== MAIN APPLICATION =====
-def main():
-    # Header
-    st.markdown("""
-    <div style="text-align: center; background: linear-gradient(135deg, #1A237E, #1565C0); color: white; padding: 3rem; border-radius: 15px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; font-size: 3rem;">🎓 MedSchool Ophtho</h1>
-        <p style="margin: 0.5rem 0 0 0; font-size: 1.4rem;">Interactive Ophthalmology Curriculum</p>
-        <p style="margin: 0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.9;">Medical Student Education Platform</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Student Registration
-    col1, col2 = st.columns([1, 2])
+# ===== AUTHENTICATION INTERFACE =====
+def show_login_register():
+    """Show login/register interface"""
+    st.markdown("## 🎓 MedSchool Ophtho - Student Portal")
     
-    with col1:
-        st.markdown("### 👨‍🎓 Student Login")
-        student_id = st.text_input("Enter Student ID:", placeholder="MS2024001")
+    tab1, tab2, tab3 = st.tabs(["🔐 Student Login", "📝 New Registration", "👨‍⚕️ Instructor Access"])
+    
+    with tab1:
+        st.markdown("### 🔐 Student Login")
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
         
-        if student_id:
-            initialize_student_progress(student_id)
-            display_student_dashboard(student_id)
+        if st.button("Login", type="primary", use_container_width=True):
+            if username and password:
+                authenticated, user_data = authenticate_user(username, password)
+                if authenticated:
+                    st.session_state.user = username
+                    st.session_state.user_data = user_data
+                    st.session_state.authenticated = True
+                    initialize_student_progress(username)
+                    st.session_state.student_progress[username]["last_login"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.success(f"Welcome back, {user_data['name']}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+            else:
+                st.warning("Please enter username and password")
+        
+        st.markdown("---")
+        st.markdown("**Demo Credentials:**")
+        st.code("Username: ms2024001\nPassword: password123")
     
-    with col2:
-        st.markdown("### 🏫 Curriculum Overview")
-        display_curriculum_progress(student_id if student_id else None)
+    with tab2:
+        st.markdown("### 📝 New Student Registration")
+        new_username = st.text_input("Choose Username", key="reg_user")
+        new_password = st.text_input("Choose Password", type="password", key="reg_pass")
+        confirm_password = st.text_input("Confirm Password", type="password", key="reg_confirm")
+        full_name = st.text_input("Full Name", key="reg_name")
+        email = st.text_input("Email Address", key="reg_email")
+        institution = st.text_input("Medical School/Institution", key="reg_inst")
+        year = st.selectbox("Current Year", ["MS1", "MS2", "MS3", "MS4", "Resident", "Other"])
+        
+        if st.button("Register", type="secondary", use_container_width=True):
+            if new_password != confirm_password:
+                st.error("Passwords do not match")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters")
+            elif not all([new_username, full_name, email]):
+                st.error("Please fill all required fields")
+            else:
+                success, message = register_user(new_username, new_password, full_name, email)
+                if success:
+                    st.session_state.users[new_username]["institution"] = institution
+                    st.session_state.users[new_username]["year"] = year
+                    st.success("Registration successful! Please login with your new credentials.")
+                    initialize_student_progress(new_username)
+                else:
+                    st.error(message)
+    
+    with tab3:
+        st.markdown("### 👨‍⚕️ Instructor Access")
+        st.info("""
+        **For Medical School Faculty:**
+        - Track student progress across curriculum
+        - Generate institutional reports
+        - Monitor learning outcomes
+        
+        **Contact administrator for instructor accounts:**
+        admin@medschoolophtho.com
+        """)
+        
+        admin_user = st.text_input("Admin Username", key="admin_user")
+        admin_pass = st.text_input("Admin Password", type="password", key="admin_pass")
+        
+        if st.button("Admin Login", use_container_width=True):
+            if admin_user == "admin" and admin_pass == "admin123":
+                st.session_state.user = "admin"
+                st.session_state.user_data = st.session_state.users["admin"]
+                st.session_state.authenticated = True
+                st.success("Admin access granted!")
+                st.rerun()
 
-    # Main Content Area
-    if student_id:
-        display_learning_interface(student_id)
-    else:
-        display_welcome_message()
-
-# ===== APPLICATION FUNCTIONS =====
-def initialize_student_progress(student_id):
-    if student_id not in st.session_state.student_progress:
-        st.session_state.student_progress[student_id] = {
+# ===== PROGRESS TRACKING AND REPORTING =====
+def initialize_student_progress(username):
+    """Initialize progress tracking for a student"""
+    if username not in st.session_state.student_progress:
+        st.session_state.student_progress[username] = {
             "current_module": "ms1_foundations",
             "modules_completed": [],
-            "cases_completed": 0,
-            "correct_answers": 0,
+            "total_cases_completed": 0,
+            "total_correct_answers": 0,
             "module_progress": {
-                module: {"completed": False, "cases_attempted": 0, "correct": 0, "started": False}
+                module: {
+                    "completed": False, 
+                    "cases_attempted": 0, 
+                    "correct_answers": 0, 
+                    "started": False,
+                    "first_attempt": None,
+                    "last_attempt": None,
+                    "average_time_per_case": 0
+                }
                 for module in CURRICULUM_MODULES
             },
             "registration_date": datetime.now().strftime("%Y-%m-%d"),
-            "last_active": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "achievements": []
+            "last_login": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "total_study_time_minutes": 0,
+            "achievements": [],
+            "case_history": []  # Track every case attempted
         }
 
-def display_student_dashboard(student_id):
-    student_data = st.session_state.student_progress[student_id]
+def record_case_attempt(username, case_id, correct, time_spent_seconds=0):
+    """Record a case attempt with detailed tracking"""
+    progress = st.session_state.student_progress[username]
+    case_data = MEDICAL_CASES[case_id]
     
-    st.success(f"**Welcome, Medical Student {student_id}!**")
+    # Update module progress
+    module = case_data["module"]
+    progress["module_progress"][module]["cases_attempted"] += 1
+    progress["module_progress"][module]["last_attempt"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    # Progress metrics
-    col1, col2, col3 = st.columns(3)
+    if progress["module_progress"][module]["first_attempt"] is None:
+        progress["module_progress"][module]["first_attempt"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    with col1:
-        completed = len([m for m in student_data["module_progress"] if student_data["module_progress"][m]["completed"]])
-        st.metric("Modules Completed", f"{completed}/{len(CURRICULUM_MODULES)}")
+    if correct:
+        progress["module_progress"][module]["correct_answers"] += 1
+        progress["total_correct_answers"] += 1
     
-    with col2:
-        st.metric("Cases Attempted", student_data["cases_completed"])
+    progress["total_cases_completed"] += 1
+    progress["total_study_time_minutes"] += time_spent_seconds / 60
     
-    with col3:
-        accuracy = (student_data["correct_answers"] / student_data["cases_completed"] * 100) if student_data["cases_completed"] > 0 else 0
-        st.metric("Overall Accuracy", f"{accuracy:.1f}%")
+    # Record detailed case history
+    progress["case_history"].append({
+        "case_id": case_id,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "module": module,
+        "correct": correct,
+        "time_spent_seconds": time_spent_seconds,
+        "difficulty": case_data["difficulty"]
+    })
     
-    # Current module progress
-    current_module = student_data["current_module"]
-    module_data = student_data["module_progress"][current_module]
-    if module_data["cases_attempted"] > 0:
-        module_accuracy = (module_data["correct"] / module_data["cases_attempted"] * 100)
-        st.write(f"**Current Module Progress:** {module_data['cases_attempted']} cases | **Accuracy:** {module_accuracy:.1f}%")
-        st.progress(min(module_data["cases_attempted"] / 10, 1.0))
+    # Check for module completion
+    if progress["module_progress"][module]["cases_attempted"] >= 3:  # Reduced for demo
+        progress["module_progress"][module]["completed"] = True
+        if module not in progress["modules_completed"]:
+            progress["modules_completed"].append(module)
 
-def display_curriculum_progress(student_id):
-    st.markdown("#### 📚 Medical School Curriculum Pathway")
+def get_student_progress_report(username):
+    """Generate comprehensive progress report"""
+    if username not in st.session_state.student_progress:
+        return None
     
-    for module_id, module_info in CURRICULUM_MODULES.items():
-        # Check if module is available
-        if student_id:
-            student_data = st.session_state.student_progress[student_id]
-            prerequisites_met = all(p in student_data["modules_completed"] for p in module_info["prerequisites"])
-            module_available = prerequisites_met or module_id == student_data["current_module"]
-            module_started = student_data["module_progress"][module_id]["started"]
-        else:
-            module_available = module_id == "ms1_foundations"
-            module_started = False
-        
-        # Display module card
-        with st.container():
-            status_icon = "✅" if student_id and student_data["module_progress"][module_id]["completed"] else "🟡" if module_started else "🔵" if module_available else "🔒"
-            
-            st.markdown(f"""
-            <div style="background: {module_info['color']}15; padding: 1.5rem; border-radius: 10px; border-left: 4px solid {module_info['color']}; margin: 1rem 0;">
-                <h4 style="color: {module_info['color']}; margin: 0;">{status_icon} {module_info['icon']} {module_info['name']}</h4>
-                <p style="margin: 0.5rem 0 0 0; color: #666;">{module_info['description']}</p>
-                <p style="margin: 0.3rem 0 0 0; font-size: 0.9rem; color: #888;">Duration: {module_info['estimated_duration']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if module_available and student_id:
-                if st.button(f"Study {module_info['name']}", key=f"btn_{module_id}", use_container_width=True):
-                    st.session_state.student_progress[student_id]["current_module"] = module_id
-                    st.session_state.student_progress[student_id]["module_progress"][module_id]["started"] = True
-                    st.rerun()
-            
-            if not module_available:
-                st.caption("🔒 Complete prerequisites to unlock")
+    progress = st.session_state.student_progress[username]
+    user_data = st.session_state.users[username]
+    
+    report = {
+        "student_info": {
+            "username": username,
+            "name": user_data["name"],
+            "email": user_data["email"],
+            "institution": user_data.get("institution", "Not specified"),
+            "year": user_data.get("year", "Not specified"),
+            "registration_date": progress["registration_date"],
+            "last_login": progress["last_login"]
+        },
+        "progress_summary": {
+            "total_cases_completed": progress["total_cases_completed"],
+            "total_correct_answers": progress["total_correct_answers"],
+            "overall_accuracy": (progress["total_correct_answers"] / progress["total_cases_completed"] * 100) if progress["total_cases_completed"] > 0 else 0,
+            "modules_completed": len(progress["modules_completed"]),
+            "total_study_time_hours": progress["total_study_time_minutes"] / 60,
+            "current_module": progress["current_module"]
+        },
+        "module_details": {},
+        "performance_analytics": {
+            "by_difficulty": {},
+            "by_module": {},
+            "timeline": progress["case_history"][-20:] if progress["case_history"] else []  # Last 20 attempts
+        }
+    }
+    
+    # Module-level details
+    for module_id, module_progress in progress["module_progress"].items():
+        if module_progress["cases_attempted"] > 0:
+            report["module_details"][module_id] = {
+                "module_name": CURRICULUM_MODULES[module_id]["name"],
+                "cases_attempted": module_progress["cases_attempted"],
+                "correct_answers": module_progress["correct_answers"],
+                "accuracy": (module_progress["correct_answers"] / module_progress["cases_attempted"] * 100),
+                "completed": module_progress["completed"],
+                "first_attempt": module_progress["first_attempt"],
+                "last_attempt": module_progress["last_attempt"]
+            }
+    
+    return report
 
-def display_welcome_message():
-    st.markdown("""
-    ## 🎯 Welcome to MedSchool Ophtho!
-    
-    **Your dedicated ophthalmology learning platform designed specifically for medical students.**
-    
-    ### 📚 Medical School Curriculum Pathway:
-    
-    **MS1 Foundations** → **MS2 Pathologies** → **MS3 Clerkship** → **MS4 Advanced** → **Boards Prep**
-    
-    ### 🎓 Educational Features:
-    
-    - **Structured learning** following medical school curriculum
-    - **Progressive difficulty** matching your training level  
-    - **Clinical cases** with immediate feedback
-    - **USMLE-aligned content** for Step 1, Step 2 CK preparation
-    - **Progress tracking** and achievement system
-    
-    ### 📖 Curriculum Details:
-    
-    **MS1 Foundations:** Basic sciences, anatomy, examination skills  
-    **MS2 Pathologies:** High-yield conditions for Step 1  
-    **MS3 Clerkship:** Clinical cases for rotation readiness  
-    **MS4 Advanced:** Complex cases for internship preparation  
-    **Boards Prep:** Integrated practice for USMLE examinations
-    
-    ### 🚀 Get Started:
-    
-    1. **Enter your Student ID** in the sidebar
-    2. **Begin with MS1 Foundations** 
-    3. **Progress through curriculum** as you master each level
-    4. **Prepare for boards** with integrated practice cases
-    
-    *Designed by medical educators for optimal learning progression.*
-    """)
-
-def display_learning_interface(student_id):
-    student_data = st.session_state.student_progress[student_id]
+# ===== LEARNING INTERFACE =====
+def show_learning_interface(username):
+    """Main learning interface with curriculum navigation"""
+    student_data = st.session_state.student_progress[username]
     current_module_id = student_data["current_module"]
     current_module = CURRICULUM_MODULES[current_module_id]
     
@@ -523,24 +780,36 @@ def display_learning_interface(student_id):
             for topic in current_module["key_topics"]:
                 st.write(f"• {topic}")
     
+    # Progress within current module
+    module_progress = student_data["module_progress"][current_module_id]
+    if module_progress["cases_attempted"] > 0:
+        accuracy = (module_progress["correct_answers"] / module_progress["cases_attempted"] * 100)
+        st.write(f"**Module Progress:** {module_progress['cases_attempted']} cases attempted | **Accuracy:** {accuracy:.1f}%")
+        st.progress(min(module_progress["cases_attempted"] / 10, 1.0))
+    
     # Case Interface
     st.markdown("### 💡 Interactive Clinical Cases")
     
-    if st.button("🎯 Generate New Case", type="primary", use_container_width=True):
-        generate_new_case(current_module_id)
-    
-    if st.session_state.current_case:
-        display_current_case(student_id)
+    if st.session_state.get("current_case") is None:
+        if st.button("🎯 Start New Case", type="primary", use_container_width=True):
+            generate_new_case(current_module_id)
+            st.rerun()
+    else:
+        display_current_case(username)
 
 def generate_new_case(module_id):
-    module_cases = [case for case_id, case in MEDICAL_CASES.items() if case["module"] == module_id]
+    """Generate a new case from the specified module"""
+    module_cases = [case_id for case_id, case in MEDICAL_CASES.items() if case["module"] == module_id]
     if module_cases:
-        st.session_state.current_case = random.choice(module_cases)
-        st.session_state.current_case_id = list(MEDICAL_CASES.keys())[list(MEDICAL_CASES.values()).index(st.session_state.current_case)]
+        selected_case_id = random.choice(module_cases)
+        st.session_state.current_case = MEDICAL_CASES[selected_case_id]
+        st.session_state.current_case_id = selected_case_id
+        st.session_state.case_start_time = time.time()
 
-def display_current_case(student_id):
+def display_current_case(username):
+    """Display and handle the current case"""
     case = st.session_state.current_case
-    student_data = st.session_state.student_progress[student_id]
+    student_data = st.session_state.student_progress[username]
     
     st.markdown("#### 📋 Clinical Scenario")
     
@@ -556,36 +825,27 @@ def display_current_case(student_id):
     
     with col1:
         if st.button("📝 Submit Answer", type="secondary", use_container_width=True):
-            process_answer(student_id, case, selected_option)
+            # Calculate time spent
+            time_spent = time.time() - st.session_state.case_start_time
+            process_answer(username, case, selected_option, time_spent)
     
     with col2:
         if st.button("🔄 New Case", use_container_width=True):
             generate_new_case(student_data["current_module"])
             st.rerun()
 
-def process_answer(student_id, case, selected_option):
-    student_data = st.session_state.student_progress[student_id]
+def process_answer(username, case, selected_option, time_spent):
+    """Process the student's answer and update progress"""
+    student_data = st.session_state.student_progress[username]
+    correct = selected_option == case["correct_answer"]
     
-    # Update progress
-    student_data["cases_completed"] += 1
-    student_data["module_progress"][case["module"]]["cases_attempted"] += 1
+    # Record the attempt
+    record_case_attempt(username, st.session_state.current_case_id, correct, time_spent)
     
-    if selected_option == case["correct_answer"]:
-        student_data["correct_answers"] += 1
-        student_data["module_progress"][case["module"]]["correct"] += 1
+    if correct:
         st.success("### ✅ Correct!")
-        
-        # Check for module completion
-        if student_data["module_progress"][case["module"]]["cases_attempted"] >= 5:  # Reduced for testing
-            student_data["module_progress"][case["module"]]["completed"] = True
-            if case["module"] not in student_data["modules_completed"]:
-                student_data["modules_completed"].append(case["module"])
-            st.balloons()
-            st.success(f"🎉 **Module Completed!** You've mastered {CURRICULUM_MODULES[case['module']]['name']}")
     else:
         st.error(f"### ❌ Correct answer: **{case['correct_answer']}**")
-    
-    student_data["last_active"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     # Show explanation
     st.markdown("---")
@@ -598,6 +858,224 @@ def process_answer(student_id, case, selected_option):
     
     # USMLE tip
     st.info(f"**USMLE Tip:** This content is highly relevant for {case['usmle_relevance']}")
+    
+    # Clear current case to allow new one
+    st.session_state.current_case = None
+
+# ===== PROGRESS DASHBOARD =====
+def show_progress_dashboard(username):
+    """Show student's personal progress dashboard"""
+    st.markdown("## 📊 My Learning Progress")
+    
+    report = get_student_progress_report(username)
+    if not report or report["progress_summary"]["total_cases_completed"] == 0:
+        st.info("No progress data yet. Start learning to track your progress!")
+        return
+    
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Cases", report["progress_summary"]["total_cases_completed"])
+    with col2:
+        st.metric("Overall Accuracy", f"{report['progress_summary']['overall_accuracy']:.1f}%")
+    with col3:
+        st.metric("Modules Completed", report["progress_summary"]["modules_completed"])
+    with col4:
+        st.metric("Study Time", f"{report['progress_summary']['total_study_time_hours']:.1f}h")
+    
+    # Module progress
+    st.markdown("### 📚 Module Progress")
+    for module_id, module_data in report["module_details"].items():
+        with st.expander(f"{CURRICULUM_MODULES[module_id]['icon']} {module_data['module_name']} - {module_data['accuracy']:.1f}% Accuracy"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Cases Attempted:** {module_data['cases_attempted']}")
+                st.write(f"**Correct Answers:** {module_data['correct_answers']}")
+                st.write(f"**Status:** {'✅ Completed' if module_data['completed'] else '🟡 In Progress'}")
+            with col2:
+                st.write(f"**First Attempt:** {module_data['first_attempt']}")
+                st.write(f"**Last Attempt:** {module_data['last_attempt']}")
+            
+            # Progress bar
+            progress = min(module_data['cases_attempted'] / 10, 1.0)
+            st.progress(progress)
+    
+    # Recent activity
+    if report["performance_analytics"]["timeline"]:
+        st.markdown("### 📈 Recent Activity")
+        recent_cases = report["performance_analytics"]["timeline"][-5:]  # Last 5 cases
+        for case in reversed(recent_cases):
+            status = "✅" if case["correct"] else "❌"
+            st.write(f"{status} {case['timestamp']} - {MEDICAL_CASES[case['case_id']]['question'][:50]}...")
+    
+    # Export personal progress
+    if st.button("📥 Download My Progress Report"):
+        # Create downloadable report
+        report_text = f"MedSchool Ophtho Progress Report\n"
+        report_text += f"Student: {report['student_info']['name']}\n"
+        report_text += f"Institution: {report['student_info']['institution']}\n"
+        report_text += f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        report_text += f"Total Cases Completed: {report['progress_summary']['total_cases_completed']}\n"
+        report_text += f"Overall Accuracy: {report['progress_summary']['overall_accuracy']:.1f}%\n\n"
+        
+        report_text += "Module Breakdown:\n"
+        for module_id, module_data in report["module_details"].items():
+            report_text += f"- {module_data['module_name']}: {module_data['accuracy']:.1f}% ({module_data['cases_attempted']} cases)\n"
+        
+        st.download_button(
+            label="Download Progress Report",
+            data=report_text,
+            file_name=f"progress_report_{username}.txt",
+            mime="text/plain"
+        )
+
+# ===== ADMIN DASHBOARD =====
+def show_admin_dashboard():
+    """Show administrator dashboard with all student progress"""
+    if "user_data" not in st.session_state or st.session_state.user_data.get("role") != "admin":
+        st.error("Admin access required")
+        return
+    
+    st.markdown("## 👨‍⚕️ Administrator Dashboard")
+    
+    # Student progress overview
+    st.markdown("### 📊 All Student Progress")
+    
+    progress_data = []
+    for username, progress in st.session_state.student_progress.items():
+        user_data = st.session_state.users.get(username, {})
+        total_cases = progress["total_cases_completed"]
+        correct_cases = progress["total_correct_answers"]
+        accuracy = (correct_cases / total_cases * 100) if total_cases > 0 else 0
+        
+        progress_data.append({
+            "Username": username,
+            "Name": user_data.get("name", "N/A"),
+            "Institution": user_data.get("institution", "N/A"),
+            "Year": user_data.get("year", "N/A"),
+            "Total Cases": total_cases,
+            "Accuracy": f"{accuracy:.1f}%",
+            "Modules Completed": len(progress["modules_completed"]),
+            "Study Time (h)": f"{progress['total_study_time_minutes'] / 60:.1f}",
+            "Last Login": progress["last_login"]
+        })
+    
+    if progress_data:
+        df = pd.DataFrame(progress_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Analytics
+        st.markdown("### 📈 Institutional Analytics")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_students = len(progress_data)
+            st.metric("Total Students", total_students)
+        
+        with col2:
+            total_cases = sum([p["Total Cases"] for p in progress_data])
+            st.metric("Total Cases Attempted", total_cases)
+        
+        with col3:
+            avg_accuracy = sum([float(p["Accuracy"][:-1]) for p in progress_data]) / len(progress_data)
+            st.metric("Average Accuracy", f"{avg_accuracy:.1f}%")
+        
+        # Export option
+        st.markdown("### 💾 Export Data")
+        if st.button("📊 Export Progress Report (CSV)"):
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="Download CSV Report",
+                data=csv,
+                file_name="student_progress_report.csv",
+                mime="text/csv"
+            )
+    else:
+        st.info("No student progress data available yet")
+
+# ===== MAIN APPLICATION =====
+def main():
+    # Initialize databases
+    initialize_user_database()
+    
+    # Header
+    st.markdown("""
+    <div style="text-align: center; background: linear-gradient(135deg, #1A237E, #1565C0); color: white; padding: 3rem; border-radius: 15px; margin-bottom: 2rem;">
+        <h1 style="color: white; margin: 0; font-size: 3rem;">🎓 MedSchool Ophtho</h1>
+        <p style="margin: 0.5rem 0 0 0; font-size: 1.4rem;">Interactive Ophthalmology Curriculum</p>
+        <p style="margin: 0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.9;">Secure Student Progress Tracking</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Authentication check
+    if "authenticated" not in st.session_state or not st.session_state.authenticated:
+        show_login_register()
+        return
+    
+    # User is authenticated - show main application
+    username = st.session_state.user
+    user_data = st.session_state.user_data
+    
+    # Sidebar with user info and navigation
+    with st.sidebar:
+        st.markdown(f"### 👨‍🎓 Welcome, {user_data['name']}!")
+        st.write(f"**Username:** {username}")
+        st.write(f"**Role:** {user_data['role'].title()}")
+        if user_data.get("institution"):
+            st.write(f"**Institution:** {user_data['institution']}")
+        st.write(f"**Last login:** {st.session_state.student_progress[username]['last_login']}")
+        
+        # Progress summary
+        progress = st.session_state.student_progress[username]
+        accuracy = (progress['total_correct_answers'] / progress['total_cases_completed'] * 100) if progress['total_cases_completed'] > 0 else 0
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Cases", progress['total_cases_completed'])
+        with col2:
+            st.metric("Accuracy", f"{accuracy:.1f}%")
+        
+        # Navigation
+        st.markdown("---")
+        if user_data["role"] == "admin":
+            page = st.radio("Navigation", ["📚 Learn", "📊 My Progress", "👨‍⚕️ Admin Dashboard", "🏫 Curriculum Overview"])
+        else:
+            page = st.radio("Navigation", ["📚 Learn", "📊 My Progress", "🏫 Curriculum Overview"])
+        
+        if st.button("🚪 Logout", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                if key not in ["users", "student_progress"]:  # Keep databases
+                    del st.session_state[key]
+            st.rerun()
+    
+    # Main content area
+    if page == "📚 Learn":
+        show_learning_interface(username)
+    elif page == "📊 My Progress":
+        show_progress_dashboard(username)
+    elif page == "👨‍⚕️ Admin Dashboard":
+        show_admin_dashboard()
+    elif page == "🏫 Curriculum Overview":
+        show_curriculum_overview()
+
+def show_curriculum_overview():
+    """Show complete curriculum overview"""
+    st.markdown("## 🏫 Medical School Curriculum Overview")
+    
+    for module_id, module_info in CURRICULUM_MODULES.items():
+        with st.expander(f"{module_info['icon']} {module_info['name']}", expanded=True):
+            st.write(f"**Description:** {module_info['description']}")
+            st.write(f"**Estimated Duration:** {module_info['estimated_duration']}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Learning Objectives:**")
+                for obj in module_info['learning_objectives']:
+                    st.write(f"• {obj}")
+            with col2:
+                st.write("**Key Topics:**")
+                for topic in module_info['key_topics']:
+                    st.write(f"• {topic}")
 
 # Run the application
 if __name__ == "__main__":
@@ -609,6 +1087,6 @@ st.markdown("""
 <div style="text-align: center; color: #666; padding: 2rem;">
     <p><strong>MedSchool Ophtho</strong> - Interactive Ophthalmology Curriculum for Medical Students</p>
     <p><small>MS1 Foundations → MS2 Pathologies → MS3 Clerkship → MS4 Advanced → Boards Preparation</small></p>
-    <p><small>Comprehensive medical education platform with USMLE-aligned content</small></p>
+    <p><small>Comprehensive medical education platform with secure progress tracking</small></p>
 </div>
 """, unsafe_allow_html=True)
